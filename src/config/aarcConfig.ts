@@ -5,7 +5,7 @@ import {
   TransactionErrorData,
   SourceConnectorName,
 } from "@aarc-xyz/fundkit-web-sdk";
-import { HYPERLIQUID_DEPOSIT_ADDRESS, SupportedChainId, USDC_ADDRESS } from "../constants";
+import { USDC_ADDRESS } from "../constants";
 
 export const aarcConfig: FKConfig = {
   appName: "Hyperliquid x Aarc",
@@ -25,14 +25,6 @@ export const aarcConfig: FKConfig = {
     },
   },
   destination: {
-    contract: {
-      contractAddress: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM],
-      contractName: "Hyperliquid Deposit",
-      contractPayload: "0x", // This will be updated dynamically
-      contractGasLimit: "300000", // Standard gas limit, can be adjusted if needed
-      contractLogoURI: "https://app.hyperliquid.xyz/coins/HYPE_USDC.svg"
-    },
-    walletAddress: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM],
     chainId: 42161, // Arb chain ID
     tokenAddress: USDC_ADDRESS, // USDC on Arb
   },
