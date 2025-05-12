@@ -1,16 +1,27 @@
 import { useState } from 'react';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect, useReadContract, useWalletClient } from 'wagmi';
 import { ethers } from 'ethers';
 import { AarcFundKitModal } from '@aarc-xyz/fundkit-web-sdk';
-import { JOJO_DEPOSIT_ADDRESS, SupportedChainId } from '../constants';
+import { HYPERLIQUID_DEPOSIT_ADDRESS, LIQUIDITY_ROUTER_ADDRESS, SupportedChainId, USDC_ADDRESS } from '../constants';
 import { Navbar } from './Navbar';
 import StyledConnectButton from './StyledConnectButton';
 
-export const JojoDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal }) => {
+interface DepositWithPermit {
+    user: string;
+    usd: bigint;
+    deadline: bigint;
+    signature: {
+        r: string;
+        s: string;
+        v: number;
+    };
+}
+
+export const HyperLiquidDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal }) => {
     const [amount, setAmount] = useState('20');
     const [isProcessing, setIsProcessing] = useState(false);
     const { disconnect } = useDisconnect();
-
+    const { data: walletClient } = useWalletClient();
     const { address } = useAccount();
 
     const handleDisconnect = () => {
@@ -25,40 +36,105 @@ export const JojoDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal })
         localStorage.removeItem('selectedAccount');
     };
 
-    // useEffect(() => {
-    //     if (chain) {
-    //         setIsWrongNetwork(chain.id !== BASE_CHAIN_ID);
-    //     }
-    // }, [chain]);
+    const { data: nonce } = useReadContract({
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: [{
+            inputs: [{ name: "owner", type: "address" }],
+            name: "nonces",
+            outputs: [{ name: "", type: "uint256" }],
+            stateMutability: "view",
+            type: "function"
+        }],
+        functionName: "nonces",
+        args: [address as `0x${string}`]
+    });
+    b
+    const splitSig = (sig: string) => {
+        const r = sig.slice(0, 66);
+        const s = "0x" + sig.slice(66, 130);
+        const v = parseInt(sig.slice(130, 132), 16);
+        return { r, s, v };
+    };
 
     const handleDeposit = async () => {
-        if (!address) return;
+        console.log("address", address);
+        console.log("walletClient", walletClient);
+        console.log("nonce", nonce);
+        if (!address || !walletClient) return;
 
         try {
             setIsProcessing(true);
 
-            // Generate calldata for deposit function on Diamond contract
-            const jojoDepositInterface = new ethers.Interface([
-                "function deposit(uint256 primaryAmount, uint256 secondaryAmount, address to) external",
-            ]);
-
             const amountInWei = ethers.parseUnits(amount, 6); // USDC has 6 decimals
+            const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
 
-            const contractPayload = jojoDepositInterface.encodeFunctionData("deposit", [
-                amountInWei,
-                ethers.parseUnits("0", 6),
-                address,
+            console.log("amountInWei", amountInWei);
+            console.log("deadline", deadline);
+            console.log("nonce", nonce);
+
+            // Create the permit for the bridge contract
+            const bridgePermit = {
+                owner: address as `0x${string}`,
+                spender: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM] as `0x${string}`, // The bridge needs the permit
+                value: amountInWei,
+                nonce,
+                deadline,
+            };
+
+            const domain = {
+                name: "USD Coin",
+                version: "2",
+                chainId: 42161,
+                verifyingContract: USDC_ADDRESS as `0x${string}`,
+            };
+
+            const permitTypes = {
+                Permit: [
+                    { name: "owner", type: "address" },
+                    { name: "spender", type: "address" },
+                    { name: "value", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "deadline", type: "uint256" },
+                ],
+            };
+
+            const dataToSign = {
+                domain,
+                types: permitTypes,
+                primaryType: "Permit",
+                message: bridgePermit,
+            } as const;
+
+            const signature = await walletClient.signTypedData(dataToSign);
+            const splitSignature = splitSig(signature);
+
+            console.log("signature", signature);
+            console.log("splitSignature", splitSignature);
+
+            // Create the deposit object for Hyperliquid with the exact amount
+            const deposit: DepositWithPermit = {
+                user: address as `0x${string}`,
+                usd: amountInWei, // Exact amount for Hyperliquid
+                deadline,
+                signature: splitSignature,
+            };
+
+            // Generate calldata for batchedDepositWithPermit function
+            const hyperLiquidDepositInterface = new ethers.Interface([
+                "function batchedDepositWithPermit(tuple(address user, uint64 usd, uint64 deadline, tuple(uint256 r, uint256 s, uint8 v) signature)[] deposits) external",
             ]);
 
+            const contractPayload = hyperLiquidDepositInterface.encodeFunctionData("batchedDepositWithPermit", [[deposit]]);
+
+            // Update Aarc's configuration with the exact amount
             aarcModal.updateRequestedAmount(Number(amount));
 
             // Update Aarc's destination contract configuration
             aarcModal.updateDestinationContract({
-                contractAddress: JOJO_DEPOSIT_ADDRESS[SupportedChainId.BASE],
-                contractName: "JOJO v1 Deposit",
+                contractAddress: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM],
+                contractName: "Hyperliquid Deposit",
                 contractGasLimit: "800000",
                 contractPayload: contractPayload,
-                contractLogoURI: "https://docs.jojo.exchange/img/favicon.png"
             });
 
             // Open the Aarc modal
@@ -87,8 +163,8 @@ export const JojoDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal })
 
                     {/* Amount Input */}
                     <div className="w-full">
-                        <a href="https://v1.jojo.exchange/trade/base/BTC-USDC" target="_blank" rel="noopener noreferrer" className="block">
-                            <h3 className="text-[14px] font-semibold text-[#F6F6F6] mb-4">Deposit in <span className="underline text-[#A5E547]">JOJO v1</span></h3>
+                        <a href="https://app.hyperliquid.xyz/trade" target="_blank" rel="noopener noreferrer" className="block">
+                            <h3 className="text-[14px] font-semibold text-[#F6F6F6] mb-4">Deposit in <span className="underline text-[#A5E547]">Hyperliquid</span></h3>
                         </a>
                         <div className="flex items-center p-3 bg-[#2A2A2A] border border-[#424242] rounded-2xl">
                             <div className="flex items-center gap-3">
@@ -122,10 +198,10 @@ export const JojoDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal })
                     </div>
 
                     {/* Warning Message */}
-                    <div className="flex gap-x-2 items-start p-4 bg-[rgba(255,183,77,0.05)] border border-[rgba(255,183,77,0.2)] rounded-2xl mt-2">
+                    <div className="flex gap-x-2 w-full items-start p-4 bg-[rgba(255,183,77,0.05)] border border-[rgba(255,183,77,0.2)] rounded-2xl mt-2">
                         <img src="/info-icon.svg" alt="Info" className="w-4 h-4 mt-[2px]" />
                         <p className="text-xs font-bold text-[#F6F6F6] leading-5">
-                            The funds will be deposited in perpetual in v1.
+                            The funds will be deposited in Hyperliquid.
                         </p>
                     </div>
 
@@ -154,4 +230,4 @@ export const JojoDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitModal })
     );
 };
 
-export default JojoDepositModal;
+export default HyperLiquidDepositModal;

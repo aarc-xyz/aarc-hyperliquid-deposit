@@ -5,10 +5,10 @@ import {
   TransactionErrorData,
   SourceConnectorName,
 } from "@aarc-xyz/fundkit-web-sdk";
-import { JOJO_DEPOSIT_ADDRESS, SupportedChainId } from "../constants";
+import { HYPERLIQUID_DEPOSIT_ADDRESS, SupportedChainId, USDC_ADDRESS } from "../constants";
 
 export const aarcConfig: FKConfig = {
-  appName: "JOJO x Aarc",
+  appName: "Hyperliquid x Aarc",
   module: {
     exchange: {
       enabled: true,
@@ -26,14 +26,15 @@ export const aarcConfig: FKConfig = {
   },
   destination: {
     contract: {
-      contractAddress: JOJO_DEPOSIT_ADDRESS[SupportedChainId.BASE],
-      contractName: "JOJO v1 Deposit",
+      contractAddress: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM],
+      contractName: "Hyperliquid Deposit",
       contractPayload: "0x", // This will be updated dynamically
       contractGasLimit: "300000", // Standard gas limit, can be adjusted if needed
+      contractLogoURI: "https://app.hyperliquid.xyz/coins/HYPE_USDC.svg"
     },
-    walletAddress: JOJO_DEPOSIT_ADDRESS[SupportedChainId.BASE],
-    chainId: 8453, // Base chain ID
-    tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+    walletAddress: HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM],
+    chainId: 42161, // Arb chain ID
+    tokenAddress: USDC_ADDRESS, // USDC on Arb
   },
   appearance: {
     roundness: 42,

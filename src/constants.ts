@@ -1,13 +1,17 @@
 export enum SupportedChainId {
-    BASE = 8453
+    ARBITRUM = 42161
 }
 
 export type AddressMap = {
     [chainId: number]: string;
 };
 
-export const JOJO_DEPOSIT_ADDRESS: AddressMap = {
-    [SupportedChainId.BASE]: '0x2f7c3cF9D9280B165981311B822BecC4E05Fe635'
+export const HYPERLIQUID_DEPOSIT_ADDRESS: AddressMap = {
+    [SupportedChainId.ARBITRUM]: '0x2df1c51e09aecf9cacb7bc98cb1742757f163df7'
 };
 
-export const BASE_RPC_URL = "https://mainnet.base.org";
+export const LIQUIDITY_ROUTER_ADDRESS: AddressMap = {
+    [SupportedChainId.ARBITRUM]: '0xA7Ae401c37b786B9bD96Db5D4BDbD2b1df882A90'
+};
+
+export const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"

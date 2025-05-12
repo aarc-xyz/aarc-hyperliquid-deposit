@@ -21,8 +21,8 @@ export const Navbar = ({ handleDisconnect }: { handleDisconnect: () => void }) =
                     />
                     <img
                         className="h-4 w-18"
-                        src="/jojo-name-logo.png"
-                        alt="Jojo Logo"
+                        src="/hyperliquid-name-logo.svg"
+                        alt="Hyperliquid Logo"
                     />
                 </div>
                 <div className="flex items-center space-x-4">
