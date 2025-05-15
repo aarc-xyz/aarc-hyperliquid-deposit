@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useAccount, useDisconnect, useWalletClient, useWriteContract } from 'wagmi';
+import { useAccount, useDisconnect, useWalletClient } from 'wagmi';
 import { ethers } from 'ethers';
 import { AarcFundKitModal } from '@aarc-xyz/fundkit-web-sdk';
-import { HYPERLIQUID_DEPOSIT_ADDRESS, USDC_ADDRESS, SupportedChainId } from '../constants';
+import { HYPERLIQUID_DEPOSIT_ADDRESS, USDC_ADDRESS, SupportedChainId, MIN_DEPOSIT, USDC_ABI } from '../constants';
 import { Navbar } from './Navbar';
 import StyledConnectButton from './StyledConnectButton';
 
@@ -14,9 +14,6 @@ export const HyperLiquidDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitM
     const { data: walletClient } = useWalletClient();
     const { address } = useAccount();
 
-    const { writeContract } = useWriteContract();
-
-    const MIN_DEPOSIT = 5;
     const isValidAmount = Number(amount) >= MIN_DEPOSIT;
 
     const handleDisconnect = () => {
@@ -32,51 +29,54 @@ export const HyperLiquidDepositModal = ({ aarcModal }: { aarcModal: AarcFundKitM
         localStorage.removeItem('selectedAccount');
     };
 
+    const transferToHyperliquid = async () => {
+        if (!walletClient || !address) return;
+
+        try {
+            const provider = new ethers.BrowserProvider(walletClient);
+            const signer = await provider.getSigner();
+            
+            const usdcContract = new ethers.Contract(
+                USDC_ADDRESS,
+                USDC_ABI,
+                signer
+            );
+
+            const amountInWei = ethers.parseUnits(amount, 6); // USDC has 6 decimals
+            
+            const tx = await usdcContract.transfer(
+                HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM] as string,
+                amountInWei
+            );
+
+            // Wait for transaction to be mined
+            await tx.wait();
+            
+            setShowProcessingModal(false);
+            setAmount('');
+            setIsProcessing(false);
+        } catch (error) {
+            console.error("Error transferring USDC to Hyperliquid:", error);
+            setShowProcessingModal(false);
+            setIsProcessing(false);
+        }
+    };
+
     const handleDeposit = async () => {
         if (!address || !walletClient || !isValidAmount) return;
 
         try {
             setIsProcessing(true);
 
-            const amountInWei = ethers.parseUnits(amount, 6); // USDC has 6 decimals
-
             // Step 1: Use AArc to convert assets to USDC
             aarcModal.updateRequestedAmount(Number(amount));
             aarcModal.updateDestinationWalletAddress(address as `0x${string}`);
-
-            // Step 2: Transfer USDC to Hyperliquid contract
-            const transferToHyperliquid = async () => {
-                try {
-                    await writeContract({
-                        address: USDC_ADDRESS as `0x${string}`,
-                        abi: [{
-                            inputs: [
-                                { name: "to", type: "address" },
-                                { name: "amount", type: "uint256" }
-                            ],
-                            name: "transfer",
-                            outputs: [{ name: "", type: "bool" }],
-                            stateMutability: "nonpayable",
-                            type: "function"
-                        }],
-                        functionName: "transfer",
-                        args: [
-                            HYPERLIQUID_DEPOSIT_ADDRESS[SupportedChainId.ARBITRUM] as `0x${string}`,
-                            amountInWei
-                        ]
-                    });
-                } catch (error) {
-                    console.error("Error transferring USDC to Hyperliquid:", error);
-                    setShowProcessingModal(false);
-                }
-            };
 
             aarcModal.updateEvents({
                 onTransactionSuccess: () => {
                     aarcModal.close();
                     setShowProcessingModal(true);
                     transferToHyperliquid();
-                    setShowProcessingModal(false);
                 }
             });
 

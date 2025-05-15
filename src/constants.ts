@@ -15,3 +15,19 @@ export const LIQUIDITY_ROUTER_ADDRESS: AddressMap = {
 };
 
 export const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+
+export const MIN_DEPOSIT = 5;
+
+// USDC ABI for transfer function
+export const USDC_ABI = [
+    {
+        inputs: [
+            { name: "to", type: "address" },
+            { name: "amount", type: "uint256" }
+        ],
+        name: "transfer",
+        outputs: [{ name: "", type: "bool" }],
+        stateMutability: "nonpayable",
+        type: "function"
+    }
+];
